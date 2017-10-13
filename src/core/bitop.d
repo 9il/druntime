@@ -72,27 +72,28 @@ unittest
  */
 int bsf(uint v) pure
 {
-    static if (size_t.sizeof == ulong.sizeof)
-    {
-        pragma(inline, true);
-        return bsf(cast(ulong) v);
-    }
-    else
-        return softBsf!uint(v);
+    pragma(inline, false);  // so intrinsic detection will work
+    return softBsf!uint(v);
 }
 
 /// ditto
 int bsf(ulong v) pure
 {
-    static if (size_t.sizeof == uint.sizeof)
+    static if (size_t.sizeof == ulong.sizeof)  // 64 bit code gen
     {
+        pragma(inline, false);   // so intrinsic detection will work
+        return softBsf!ulong(v);
+    }
+    else
+    {
+        /* intrinsic not available for 32 bit code,
+         * make do with 32 bit bsf
+         */
         const sv = Split64(v);
         return (sv.lo == 0)?
             bsf(sv.hi) + 32 :
             bsf(sv.lo);
     }
-    else
-        return softBsf!ulong(v);
 }
 
 ///
@@ -119,27 +120,28 @@ unittest
  */
 int bsr(uint v) pure
 {
-    static if (size_t.sizeof == ulong.sizeof)
-    {
-        pragma(inline, true);
-        return bsr(cast(ulong) v);
-    }
-    else
-        return softBsr!uint(v);
+    pragma(inline, false);  // so intrinsic detection will work
+    return softBsr!uint(v);
 }
 
 /// ditto
 int bsr(ulong v) pure
 {
-    static if (size_t.sizeof == uint.sizeof)
+    static if (size_t.sizeof == ulong.sizeof)  // 64 bit code gen
     {
+        pragma(inline, false);   // so intrinsic detection will work
+        return softBsr!ulong(v);
+    }
+    else
+    {
+        /* intrinsic not available for 32 bit code,
+         * make do with 32 bit bsr
+         */
         const sv = Split64(v);
         return (sv.hi == 0)?
             bsr(sv.lo) :
             bsr(sv.hi) + 32;
     }
-    else
-        return softBsr!ulong(v);
 }
 
 ///
@@ -353,6 +355,143 @@ int bts(size_t* p, size_t bitnum) pure @system;
     assert(btr(array.ptr, 35));
     assert(array[0] == 2);
     assert(array[1] == 0x100);
+}
+
+/**
+ * Range over bit set. Each element is the bit number that is set.
+ *
+ * This is more efficient than testing each bit in a sparsely populated bit
+ * set. Note that the first bit in the bit set would be bit 0.
+ */
+struct BitRange
+{
+    /// Number of bits in each size_t
+    enum bitsPerWord = size_t.sizeof * 8;
+
+    private
+    {
+        const(size_t)*bits; // points at next word of bits to check
+        size_t cur; // needed to allow searching bits using bsf
+        size_t idx; // index of current set bit
+        size_t len; // number of bits in the bit set.
+    }
+    @nogc nothrow pure:
+
+    /**
+     * Construct a BitRange.
+     *
+     * Params:
+     *   bitarr - The array of bits to iterate over
+     *   numBits - The total number of valid bits in the given bit array
+     */
+    this(const(size_t)* bitarr, size_t numBits) @system
+    {
+        bits = bitarr;
+        len = numBits;
+        if (len)
+        {
+            // prime the first bit
+            cur = *bits++ ^ 1;
+            popFront();
+        }
+    }
+
+    /// Range functions
+    size_t front()
+    {
+        assert(!empty);
+        return idx;
+    }
+
+    /// ditto
+    bool empty() const
+    {
+        return idx >= len;
+    }
+
+    /// ditto
+    void popFront() @system
+    {
+        // clear the current bit
+        auto curbit = idx % bitsPerWord;
+        cur ^= size_t(1) << curbit;
+        if(!cur)
+        {
+            // find next size_t with set bit
+            idx -= curbit;
+            while (!cur)
+            {
+                if ((idx += bitsPerWord) >= len)
+                    // now empty
+                    return;
+                cur = *bits++;
+            }
+            idx += bsf(cur);
+        }
+        else
+        {
+            idx += bsf(cur) - curbit;
+        }
+    }
+}
+
+///
+@system unittest
+{
+    import core.stdc.stdlib : malloc, free;
+    import core.stdc.string : memset;
+
+    // initialize a bit array
+    enum nBytes = (100 + BitRange.bitsPerWord - 1) / 8;
+    size_t *bitArr = cast(size_t *)malloc(nBytes);
+    scope(exit) free(bitArr);
+    memset(bitArr, 0, nBytes);
+
+    // set some bits
+    bts(bitArr, 48);
+    bts(bitArr, 24);
+    bts(bitArr, 95);
+    bts(bitArr, 78);
+
+    enum sum = 48 + 24 + 95 + 78;
+
+    // iterate
+    size_t testSum;
+    size_t nBits;
+    foreach(b; BitRange(bitArr, 100))
+    {
+        testSum += b;
+        ++nBits;
+    }
+
+    assert(testSum == sum);
+    assert(nBits == 4);
+}
+
+@system unittest
+{
+    void testIt(size_t numBits, size_t[] bitsToTest...)
+    {
+        import core.stdc.stdlib : malloc, free;
+        import core.stdc.string : memset;
+        immutable numBytes = (numBits + size_t.sizeof * 8 - 1) / 8;
+        size_t* bitArr = cast(size_t *)malloc(numBytes);
+        scope(exit) free(bitArr);
+        memset(bitArr, 0, numBytes);
+        foreach(b; bitsToTest)
+            bts(bitArr, b);
+        auto br = BitRange(bitArr, numBits);
+        foreach(b; bitsToTest)
+        {
+            assert(!br.empty);
+            assert(b == br.front);
+            br.popFront();
+        }
+        assert(br.empty);
+    }
+
+    testIt(100, 0, 1, 31, 63, 85);
+    testIt(100, 6, 45, 89, 92, 99);
 }
 
 /**

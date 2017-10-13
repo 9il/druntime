@@ -9,8 +9,8 @@ CC=dmc
 DOCDIR=doc
 IMPDIR=import
 
-DFLAGS=-m$(MODEL) -conf= -O -release -dip25 -inline -w -Isrc -Iimport
-UDFLAGS=-m$(MODEL) -conf= -O -release -dip25 -w -Isrc -Iimport
+DFLAGS=-m$(MODEL) -conf= -O -release -dip1000 -inline -w -Isrc -Iimport
+UDFLAGS=-m$(MODEL) -conf= -O -release -dip1000 -w -Isrc -Iimport
 DDOCFLAGS=-conf= -c -w -o- -Isrc -Iimport -version=CoreDdoc
 
 CFLAGS=
@@ -83,6 +83,9 @@ $(DOCDIR)\core_time.html : src\core\time.d
 	$(DMD) $(DDOCFLAGS) -Df$@ $(DOCFMT) $**
 
 $(DOCDIR)\core_vararg.html : src\core\vararg.d
+	$(DMD) $(DDOCFLAGS) -Df$@ $(DOCFMT) $**
+
+$(DOCDIR)\core_stdc_assert_.html : src\core\stdc\assert_.d
 	$(DMD) $(DDOCFLAGS) -Df$@ $(DOCFMT) $**
 
 $(DOCDIR)\core_stdc_complex.html : src\core\stdc\complex.d
@@ -263,6 +266,9 @@ $(IMPDIR)\core\vararg.d : src\core\vararg.d
 $(IMPDIR)\core\internal\abort.d : src\core\internal\abort.d
 	copy $** $@
 
+$(IMPDIR)\core\internal\arrayop.d : src\core\internal\arrayop.d
+	copy $** $@
+
 $(IMPDIR)\core\internal\convert.d : src\core\internal\convert.d
 	copy $** $@
 
@@ -276,6 +282,9 @@ $(IMPDIR)\core\internal\string.d : src\core\internal\string.d
 	copy $** $@
 
 $(IMPDIR)\core\internal\traits.d : src\core\internal\traits.d
+	copy $** $@
+
+$(IMPDIR)\core\stdc\assert_.d : src\core\stdc\assert_.d
 	copy $** $@
 
 $(IMPDIR)\core\stdc\complex.d : src\core\stdc\complex.d
@@ -446,7 +455,13 @@ $(IMPDIR)\core\sys\linux\execinfo.d : src\core\sys\linux\execinfo.d
 $(IMPDIR)\core\sys\linux\fcntl.d : src\core\sys\linux\fcntl.d
 	copy $** $@
 
+$(IMPDIR)\core\sys\linux\ifaddrs.d : src\core\sys\linux\ifaddrs.d
+	copy $** $@
+
 $(IMPDIR)\core\sys\linux\link.d : src\core\sys\linux\link.d
+	copy $** $@
+
+$(IMPDIR)\core\sys\linux\sched.d : src\core\sys\linux\sched.d
 	copy $** $@
 
 $(IMPDIR)\core\sys\linux\termios.d : src\core\sys\linux\termios.d
@@ -467,10 +482,22 @@ $(IMPDIR)\core\sys\linux\unistd.d : src\core\sys\linux\unistd.d
 $(IMPDIR)\core\sys\linux\sys\auxv.d : src\core\sys\linux\sys\auxv.d
 	copy $** $@
 
+$(IMPDIR)\core\sys\linux\sys\eventfd.d : src\core\sys\linux\sys\eventfd.d
+	copy $** $@
+
+$(IMPDIR)\core\sys\linux\sys\file.d : src\core\sys\linux\sys\file.d
+	copy $** $@
+
 $(IMPDIR)\core\sys\linux\sys\inotify.d : src\core\sys\linux\sys\inotify.d
 	copy $** $@
 
+$(IMPDIR)\core\sys\linux\sys\prctl.d : src\core\sys\linux\sys\prctl.d
+	copy $** $@
+
 $(IMPDIR)\core\sys\linux\sys\mman.d : src\core\sys\linux\sys\mman.d
+	copy $** $@
+
+$(IMPDIR)\core\sys\linux\sys\netinet\tcp.d : src\core\sys\linux\sys\netinet\tcp.d
 	copy $** $@
 
 $(IMPDIR)\core\sys\linux\sys\signalfd.d : src\core\sys\linux\sys\signalfd.d
@@ -483,6 +510,9 @@ $(IMPDIR)\core\sys\linux\sys\sysinfo.d : src\core\sys\linux\sys\sysinfo.d
 	copy $** $@
 
 $(IMPDIR)\core\sys\linux\sys\xattr.d : src\core\sys\linux\sys\xattr.d
+	copy $** $@
+
+$(IMPDIR)\core\sys\linux\sys\time.d : src\core\sys\linux\sys\time.d
 	copy $** $@
 
 $(IMPDIR)\core\sys\openbsd\dlfcn.d : src\core\sys\openbsd\dlfcn.d
@@ -539,7 +569,13 @@ $(IMPDIR)\core\sys\posix\fcntl.d : src\core\sys\posix\fcntl.d
 $(IMPDIR)\core\sys\posix\grp.d : src\core\sys\posix\grp.d
 	copy $** $@
 
+$(IMPDIR)\core\sys\posix\iconv.d : src\core\sys\posix\iconv.d
+	copy $** $@
+
 $(IMPDIR)\core\sys\posix\inttypes.d : src\core\sys\posix\inttypes.d
+	copy $** $@
+
+$(IMPDIR)\core\sys\posix\libgen.d : src\core\sys\posix\libgen.d
 	copy $** $@
 
 $(IMPDIR)\core\sys\posix\netdb.d : src\core\sys\posix\netdb.d
@@ -1257,10 +1293,10 @@ $(GCSTUB) : src\gcstub\gc.d win$(MODEL).mak
 ################### Library generation #########################
 
 $(DRUNTIME): $(OBJS) $(SRCS) win$(MODEL).mak
-	$(DMD) -lib -of$(DRUNTIME) -Xfdruntime.json $(DFLAGS) $(SRCS) $(OBJS)
+	*$(DMD) -lib -of$(DRUNTIME) -Xfdruntime.json $(DFLAGS) $(SRCS) $(OBJS)
 
 unittest : $(SRCS) $(DRUNTIME)
-	$(DMD) $(UDFLAGS) -L/co -unittest -ofunittest.exe -main $(SRCS) $(DRUNTIME) -debuglib=$(DRUNTIME) -defaultlib=$(DRUNTIME)
+	*$(DMD) $(UDFLAGS) -L/co -unittest -ofunittest.exe -main $(SRCS) $(DRUNTIME) -debuglib=$(DRUNTIME) -defaultlib=$(DRUNTIME)
 	unittest
 
 zip: druntime.zip
@@ -1281,4 +1317,3 @@ clean:
 auto-tester-build: target
 
 auto-tester-test: unittest
-

@@ -1,5 +1,6 @@
 COPY=\
 	$(IMPDIR)\object.d \
+	\
 	$(IMPDIR)\core\atomic.d \
 	$(IMPDIR)\core\attribute.d \
 	$(IMPDIR)\core\bitop.d \
@@ -16,12 +17,14 @@ COPY=\
 	$(IMPDIR)\core\vararg.d \
 	\
 	$(IMPDIR)\core\internal\abort.d \
+	$(IMPDIR)\core\internal\arrayop.d \
 	$(IMPDIR)\core\internal\convert.d \
 	$(IMPDIR)\core\internal\hash.d \
 	$(IMPDIR)\core\internal\spinlock.d \
 	$(IMPDIR)\core\internal\string.d \
 	$(IMPDIR)\core\internal\traits.d \
 	\
+	$(IMPDIR)\core\stdc\assert_.d \
 	$(IMPDIR)\core\stdc\complex.d \
 	$(IMPDIR)\core\stdc\config.d \
 	$(IMPDIR)\core\stdc\ctype.d \
@@ -85,7 +88,9 @@ COPY=\
 	$(IMPDIR)\core\sys\linux\errno.d \
 	$(IMPDIR)\core\sys\linux\execinfo.d \
 	$(IMPDIR)\core\sys\linux\fcntl.d \
+	$(IMPDIR)\core\sys\linux\ifaddrs.d \
 	$(IMPDIR)\core\sys\linux\link.d \
+	$(IMPDIR)\core\sys\linux\sched.d \
 	$(IMPDIR)\core\sys\linux\termios.d \
 	$(IMPDIR)\core\sys\linux\time.d \
 	$(IMPDIR)\core\sys\linux\timerfd.d \
@@ -93,12 +98,17 @@ COPY=\
 	$(IMPDIR)\core\sys\linux\unistd.d \
 	\
 	$(IMPDIR)\core\sys\linux\sys\auxv.d \
+	$(IMPDIR)\core\sys\linux\sys\eventfd.d \
+	$(IMPDIR)\core\sys\linux\sys\file.d \
 	$(IMPDIR)\core\sys\linux\sys\inotify.d \
 	$(IMPDIR)\core\sys\linux\sys\mman.d \
+	$(IMPDIR)\core\sys\linux\sys\netinet\tcp.d \
 	$(IMPDIR)\core\sys\linux\sys\signalfd.d \
 	$(IMPDIR)\core\sys\linux\sys\socket.d \
 	$(IMPDIR)\core\sys\linux\sys\sysinfo.d \
 	$(IMPDIR)\core\sys\linux\sys\xattr.d \
+	$(IMPDIR)\core\sys\linux\sys\time.d \
+	$(IMPDIR)\core\sys\linux\sys\prctl.d \
 	\
 	$(IMPDIR)\core\sys\openbsd\dlfcn.d \
 	\
@@ -122,7 +132,9 @@ COPY=\
 	$(IMPDIR)\core\sys\posix\dlfcn.d \
 	$(IMPDIR)\core\sys\posix\fcntl.d \
 	$(IMPDIR)\core\sys\posix\grp.d \
+	$(IMPDIR)\core\sys\posix\iconv.d \
 	$(IMPDIR)\core\sys\posix\inttypes.d \
+	$(IMPDIR)\core\sys\posix\libgen.d \
 	$(IMPDIR)\core\sys\posix\netdb.d \
 	$(IMPDIR)\core\sys\posix\poll.d \
 	$(IMPDIR)\core\sys\posix\pthread.d \

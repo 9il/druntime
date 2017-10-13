@@ -129,7 +129,7 @@ ulong mach_absolute_time();
 }
 
 //To verify that an lvalue isn't required.
-version(unittest) T copy(T)(T t)
+version(unittest) private T copy(T)(T t)
 {
     return t;
 }
@@ -313,6 +313,13 @@ else version(FreeBSD) enum ClockType
     uptimeCoarse = 9,
     uptimePrecise = 10,
 }
+else version(NetBSD) enum ClockType
+{
+    normal = 0,
+    coarse = 2,
+    precise = 3,
+    second = 6,
+}
 else version(Solaris) enum ClockType
 {
     normal = 0,
@@ -365,6 +372,17 @@ version(Posix)
             case uptime: return CLOCK_UPTIME;
             case uptimeCoarse: return CLOCK_UPTIME_FAST;
             case uptimePrecise: return CLOCK_UPTIME_PRECISE;
+            case second: assert(0);
+            }
+        }
+        else version(NetBSD)
+        {
+            import core.sys.netbsd.time;
+            with(ClockType) final switch(clockType)
+            {
+            case coarse: return CLOCK_MONOTONIC;
+            case normal: return CLOCK_MONOTONIC;
+            case precise: return CLOCK_MONOTONIC;
             case second: assert(0);
             }
         }
@@ -1086,6 +1104,22 @@ public:
         }
     }
 
+    /++
+        Allow Duration to be used as a boolean.
+        Returns: `true` if this duration is non-zero.
+      +/
+    bool opCast(T : bool)() const nothrow @nogc
+    {
+        return _hnsecs != 0;
+    }
+
+    unittest
+    {
+        auto d = 10.minutes;
+        assert(d);
+        assert(!(d - d));
+        assert(d + d);
+    }
 
     //Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
     Duration opCast(T)() const nothrow @nogc
@@ -1140,9 +1174,9 @@ public:
             foreach(i, unit; units)
             {
                 static if(unit == "nsecs")
-                    args[i] = cast(typeof(args[i]))convert!("hnsecs", "nsecs")(hnsecs);
+                    args[i] = cast(Args[i])convert!("hnsecs", "nsecs")(hnsecs);
                 else
-                    args[i] = cast(typeof(args[i]))splitUnitsFromHNSecs!unit(hnsecs);
+                    args[i] = cast(Args[i])splitUnitsFromHNSecs!unit(hnsecs);
             }
         }
 
@@ -1420,230 +1454,6 @@ public:
     }
 
 
-    // Explicitly undocumented. It will be removed in August 2016. @@@DEPRECATED_2016-08@@@
-    deprecated("Please use split instead. get was too frequently confused for total.")
-    long get(string units)() const nothrow @nogc
-        if(units == "weeks" ||
-           units == "days" ||
-           units == "hours" ||
-           units == "minutes" ||
-           units == "seconds")
-    {
-        static if(units == "weeks")
-            return getUnitsFromHNSecs!"weeks"(_hnsecs);
-        else
-        {
-            immutable hnsecs = removeUnitsFromHNSecs!(nextLargerTimeUnits!units)(_hnsecs);
-            return getUnitsFromHNSecs!units(hnsecs);
-        }
-    }
-
-    ///
-    deprecated unittest
-    {
-        assert(dur!"weeks"(12).get!"weeks" == 12);
-        assert(dur!"weeks"(12).get!"days" == 0);
-
-        assert(dur!"days"(13).get!"weeks" == 1);
-        assert(dur!"days"(13).get!"days" == 6);
-
-        assert(dur!"hours"(49).get!"days" == 2);
-        assert(dur!"hours"(49).get!"hours" == 1);
-    }
-
-    deprecated unittest
-    {
-        foreach(D; _TypeTuple!(const Duration, immutable Duration))
-        {
-            assert((cast(D)dur!"weeks"(12)).get!"weeks" == 12);
-            assert((cast(D)dur!"weeks"(12)).get!"days" == 0);
-
-            assert((cast(D)dur!"days"(13)).get!"weeks" == 1);
-            assert((cast(D)dur!"days"(13)).get!"days" == 6);
-
-            assert((cast(D)dur!"hours"(49)).get!"days" == 2);
-            assert((cast(D)dur!"hours"(49)).get!"hours" == 1);
-        }
-    }
-
-
-    // Explicitly undocumented. It will be removed in August 2016. @@@DEPRECATED_2016-08@@@
-    deprecated(`Please use split instead. The functions which wrapped get were too frequently confused with total.`)
-    @property long weeks() const nothrow @nogc
-    {
-        return get!"weeks"();
-    }
-
-    ///
-    deprecated unittest
-    {
-        assert(dur!"weeks"(12).weeks == 12);
-        assert(dur!"days"(13).weeks == 1);
-    }
-
-    deprecated unittest
-    {
-        foreach(D; _TypeTuple!(const Duration, immutable Duration))
-        {
-            assert((cast(D)dur!"weeks"(12)).weeks == 12);
-            assert((cast(D)dur!"days"(13)).weeks == 1);
-        }
-    }
-
-
-    // Explicitly undocumented. It will be removed in August 2016. @@@DEPRECATED_2016-08@@@
-    deprecated(`Please use split instead. days was too frequently confused for total!"days".`)
-    @property long days() const nothrow @nogc
-    {
-        return get!"days"();
-    }
-
-    ///
-    deprecated unittest
-    {
-        assert(dur!"weeks"(12).days == 0);
-        assert(dur!"days"(13).days == 6);
-        assert(dur!"hours"(49).days == 2);
-    }
-
-    deprecated unittest
-    {
-        foreach(D; _TypeTuple!(const Duration, immutable Duration))
-        {
-            assert((cast(D)dur!"weeks"(12)).days == 0);
-            assert((cast(D)dur!"days"(13)).days == 6);
-            assert((cast(D)dur!"hours"(49)).days == 2);
-        }
-    }
-
-
-    // Explicitly undocumented. It will be removed in August 2016. @@@DEPRECATED_2016-08@@@
-    deprecated(`Please use split instead. hours was too frequently confused for total!"hours".`)
-    @property long hours() const nothrow @nogc
-    {
-        return get!"hours"();
-    }
-
-    ///
-    deprecated unittest
-    {
-        assert(dur!"days"(8).hours == 0);
-        assert(dur!"hours"(49).hours == 1);
-        assert(dur!"minutes"(121).hours == 2);
-    }
-
-    deprecated unittest
-    {
-        foreach(D; _TypeTuple!(const Duration, immutable Duration))
-        {
-            assert((cast(D)dur!"days"(8)).hours == 0);
-            assert((cast(D)dur!"hours"(49)).hours == 1);
-            assert((cast(D)dur!"minutes"(121)).hours == 2);
-        }
-    }
-
-
-    // Explicitly undocumented. It will be removed in August 2016. @@@DEPRECATED_2016-08@@@
-    deprecated(`Please use split instead. minutes was too frequently confused for total!"minutes".`)
-    @property long minutes() const nothrow @nogc
-    {
-        return get!"minutes"();
-    }
-
-    ///
-    deprecated unittest
-    {
-        assert(dur!"hours"(47).minutes == 0);
-        assert(dur!"minutes"(127).minutes == 7);
-        assert(dur!"seconds"(121).minutes == 2);
-    }
-
-    deprecated unittest
-    {
-        foreach(D; _TypeTuple!(const Duration, immutable Duration))
-        {
-            assert((cast(D)dur!"hours"(47)).minutes == 0);
-            assert((cast(D)dur!"minutes"(127)).minutes == 7);
-            assert((cast(D)dur!"seconds"(121)).minutes == 2);
-        }
-    }
-
-
-    // Explicitly undocumented. It will be removed in August 2016. @@@DEPRECATED_2016-08@@@
-    deprecated(`Please use split instead. seconds was too frequently confused for total!"seconds".`)
-    @property long seconds() const nothrow @nogc
-    {
-        return get!"seconds"();
-    }
-
-    ///
-    deprecated unittest
-    {
-        assert(dur!"minutes"(47).seconds == 0);
-        assert(dur!"seconds"(127).seconds == 7);
-        assert(dur!"msecs"(1217).seconds == 1);
-    }
-
-    deprecated unittest
-    {
-        foreach(D; _TypeTuple!(const Duration, immutable Duration))
-        {
-            assert((cast(D)dur!"minutes"(47)).seconds == 0);
-            assert((cast(D)dur!"seconds"(127)).seconds == 7);
-            assert((cast(D)dur!"msecs"(1217)).seconds == 1);
-        }
-    }
-
-
-    // Explicitly undocumented. It will be removed in August 2016. @@@DEPRECATED_2016-08@@@
-    deprecated(`Please use split instead.`)
-    @property FracSec fracSec() const nothrow
-    {
-        try
-        {
-            immutable hnsecs = removeUnitsFromHNSecs!("seconds")(_hnsecs);
-
-            return FracSec.from!"hnsecs"(hnsecs);
-        }
-        catch(Exception e)
-            assert(0, "FracSec.from!\"hnsecs\"() threw.");
-    }
-
-    ///
-    deprecated unittest
-    {
-        assert(dur!"msecs"(1000).fracSec == FracSec.from!"msecs"(0));
-        assert(dur!"msecs"(1217).fracSec == FracSec.from!"msecs"(217));
-        assert(dur!"usecs"(43).fracSec == FracSec.from!"usecs"(43));
-        assert(dur!"hnsecs"(50_007).fracSec == FracSec.from!"hnsecs"(50_007));
-        assert(dur!"nsecs"(62_127).fracSec == FracSec.from!"nsecs"(62_100));
-
-        assert(dur!"msecs"(-1000).fracSec == FracSec.from!"msecs"(-0));
-        assert(dur!"msecs"(-1217).fracSec == FracSec.from!"msecs"(-217));
-        assert(dur!"usecs"(-43).fracSec == FracSec.from!"usecs"(-43));
-        assert(dur!"hnsecs"(-50_007).fracSec == FracSec.from!"hnsecs"(-50_007));
-        assert(dur!"nsecs"(-62_127).fracSec == FracSec.from!"nsecs"(-62_100));
-    }
-
-    deprecated unittest
-    {
-        foreach(D; _TypeTuple!(const Duration, immutable Duration))
-        {
-            assert((cast(D)dur!"msecs"(1000)).fracSec == FracSec.from!"msecs"(0));
-            assert((cast(D)dur!"msecs"(1217)).fracSec == FracSec.from!"msecs"(217));
-            assert((cast(D)dur!"usecs"(43)).fracSec == FracSec.from!"usecs"(43));
-            assert((cast(D)dur!"hnsecs"(50_007)).fracSec == FracSec.from!"hnsecs"(50_007));
-            assert((cast(D)dur!"nsecs"(62_127)).fracSec == FracSec.from!"nsecs"(62_100));
-
-            assert((cast(D)dur!"msecs"(-1000)).fracSec == FracSec.from!"msecs"(-0));
-            assert((cast(D)dur!"msecs"(-1217)).fracSec == FracSec.from!"msecs"(-217));
-            assert((cast(D)dur!"usecs"(-43)).fracSec == FracSec.from!"usecs"(-43));
-            assert((cast(D)dur!"hnsecs"(-50_007)).fracSec == FracSec.from!"hnsecs"(-50_007));
-            assert((cast(D)dur!"nsecs"(-62_127)).fracSec == FracSec.from!"nsecs"(-62_100));
-        }
-    }
-
-
     /++
         Returns the total number of the given units in this $(D Duration).
         So, unlike $(D split), it does not strip out the larger units.
@@ -1700,27 +1510,91 @@ public:
     }
 
 
-    /+
-        Converts this $(D Duration) to a $(D string).
+    /++
+        Converts this `Duration` to a `string`.
+
+        The string is meant to be human readable, not machine parseable (e.g.
+        whether there is an `'s'` on the end of the unit name usually depends on
+        whether it's plural or not, and empty units are not included unless the
+        Duration is `zero`). Any code needing a specific string format should
+        use `total` or `split` to get the units needed to create the desired
+        string format and create the string itself.
+
+        The format returned by toString may or may not change in the future.
       +/
-    //Due to bug http://d.puremagic.com/issues/show_bug.cgi?id=3715 , we can't
-    //have versions of toString() with extra modifiers, so we define one version
-    //with modifiers and one without.
-    string toString()
+    string toString() const nothrow pure @safe
     {
-        return _toStringImpl();
+        static void appListSep(ref string res, uint pos, bool last)
+        {
+            if (pos == 0)
+                return;
+            if (!last)
+                res ~= ", ";
+            else
+                res ~= pos == 1 ? " and " : ", and ";
+        }
+
+        static void appUnitVal(string units)(ref string res, long val)
+        {
+            immutable plural = val != 1;
+            string unit;
+            static if (units == "seconds")
+                unit = plural ? "secs" : "sec";
+            else static if (units == "msecs")
+                unit = "ms";
+            else static if (units == "usecs")
+                unit = "μs";
+            else
+                unit = plural ? units : units[0 .. $-1];
+            res ~= signedToTempString(val, 10);
+            res ~= " ";
+            res ~= unit;
+        }
+
+        if (_hnsecs == 0)
+            return "0 hnsecs";
+
+        template TT(T...) { alias T TT; }
+        alias units = TT!("weeks", "days", "hours", "minutes", "seconds", "msecs", "usecs");
+
+        long hnsecs = _hnsecs; string res; uint pos;
+        foreach (unit; units)
+        {
+            if (auto val = splitUnitsFromHNSecs!unit(hnsecs))
+            {
+                appListSep(res, pos++, hnsecs == 0);
+                appUnitVal!unit(res, val);
+            }
+            if (hnsecs == 0)
+                break;
+        }
+        if (hnsecs != 0)
+        {
+            appListSep(res, pos++, true);
+            appUnitVal!"hnsecs"(res, hnsecs);
+        }
+        return res;
     }
 
-
-    /++
-        Converts this $(D Duration) to a $(D string).
-      +/
-    //Due to bug http://d.puremagic.com/issues/show_bug.cgi?id=3715 , we can't
-    //have versions of toString() with extra modifiers, so we define one version
-    //with modifiers and one without.
-    string toString() const nothrow
+    ///
+    unittest
     {
-        return _toStringImpl();
+        assert(Duration.zero.toString() == "0 hnsecs");
+        assert(weeks(5).toString() == "5 weeks");
+        assert(days(2).toString() == "2 days");
+        assert(hours(1).toString() == "1 hour");
+        assert(minutes(19).toString() == "19 minutes");
+        assert(seconds(42).toString() == "42 secs");
+        assert(msecs(42).toString() == "42 ms");
+        assert(usecs(27).toString() == "27 μs");
+        assert(hnsecs(5).toString() == "5 hnsecs");
+
+        assert(seconds(121).toString() == "2 minutes and 1 sec");
+        assert((minutes(5) + seconds(3) + usecs(4)).toString() ==
+               "5 minutes, 3 secs, and 4 μs");
+
+        assert(seconds(-42).toString() == "-42 secs");
+        assert(usecs(-5239492).toString() == "-5 secs, -239 ms, and -492 μs");
     }
 
     unittest
@@ -1795,63 +1669,6 @@ public:
 
 
 private:
-
-    /+
-        Since we have two versions of toString, we have _toStringImpl
-        so that they can share implementations.
-      +/
-    string _toStringImpl() const nothrow
-    {
-        static void appListSep(ref string res, uint pos, bool last) nothrow
-        {
-            if (pos == 0)
-                return;
-            if (!last)
-                res ~= ", ";
-            else
-                res ~= pos == 1 ? " and " : ", and ";
-        }
-
-        static void appUnitVal(string units)(ref string res, long val) nothrow
-        {
-            immutable plural = val != 1;
-            string unit;
-            static if (units == "seconds")
-                unit = plural ? "secs" : "sec";
-            else static if (units == "msecs")
-                unit = "ms";
-            else static if (units == "usecs")
-                unit = "μs";
-            else
-                unit = plural ? units : units[0 .. $-1];
-            res ~= signedToTempString(val, 10);
-            res ~= " ";
-            res ~= unit;
-        }
-
-        if (_hnsecs == 0) return "0 hnsecs";
-
-        template TT(T...) { alias T TT; }
-        alias units = TT!("weeks", "days", "hours", "minutes", "seconds", "msecs", "usecs");
-
-        long hnsecs = _hnsecs; string res; uint pos;
-        foreach (unit; units)
-        {
-            if (auto val = splitUnitsFromHNSecs!unit(hnsecs))
-            {
-                appListSep(res, pos++, hnsecs == 0);
-                appUnitVal!unit(res, val);
-            }
-            if (hnsecs == 0) break;
-        }
-        if (hnsecs != 0)
-        {
-            appListSep(res, pos++, true);
-            appUnitVal!"hnsecs"(res, hnsecs);
-        }
-        return res;
-    }
-
 
     /+
         Params:
@@ -2667,12 +2484,14 @@ extern(C) void _d_initMonoTime()
                         assert(0);
 
                     // For some reason, on some systems, clock_getres returns
-                    // a resolution which is clearly wrong (it's a millisecond
-                    // or worse, but the time is updated much more frequently
-                    // than that). In such cases, we'll just use nanosecond
-                    // resolution.
-                    tps[i] = ts.tv_nsec >= 1000 ? 1_000_000_000L
-                                                            : 1_000_000_000L / ts.tv_nsec;
+                    // a resolution which is clearly wrong:
+                    //  - it's a millisecond or worse, but the time is updated
+                    //    much more frequently than that.
+                    //  - it's negative
+                    //  - it's zero
+                    // In such cases, we'll just use nanosecond resolution.
+                    tps[i] = ts.tv_sec != 0 || ts.tv_nsec <= 0 || ts.tv_nsec >= 1000
+                        ? 1_000_000_000L : 1_000_000_000L / ts.tv_nsec;
                 }
             }
         }
@@ -3695,7 +3514,13 @@ unittest
 }
 
 
+// @@@DEPRECATED_2018-10@@@
 /++
+    $(RED Everything in druntime and Phobos that was using FracSec now uses
+          Duration for greater simplicity. So, FracSec has been deprecated.
+          It will be removed from the docs in October 2018, and removed
+          completely from druntime in October 2019.)
+
     Represents fractional seconds.
 
     This is the portion of the time which is smaller than a second and it cannot
@@ -3715,6 +3540,7 @@ unittest
     given as nsecs will be converted to hnsecs using $(D convert) (which uses
     truncating division when converting to smaller units).
   +/
+deprecated("FracSec has been deprecated in favor of just using Duration for the sake of simplicity")
 struct FracSec
 {
 @safe pure:

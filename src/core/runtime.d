@@ -302,6 +302,47 @@ struct Runtime
      *
      * Params:
      *  h = The new unit tester.  Set to null to use the default unit tester.
+     *
+     * Example:
+     * ---------
+     * version (unittest) shared static this()
+     * {
+     *     import core.runtime;
+     *
+     *     Runtime.moduleUnitTester = &customModuleUnitTester;
+     * }
+     *
+     * bool customModuleUnitTester()
+     * {
+     *     import std.stdio;
+     *
+     *     writeln("Using customModuleUnitTester");
+     *
+     *     // Do the same thing as the default moduleUnitTester:
+     *     size_t failed = 0;
+     *     foreach (m; ModuleInfo)
+     *     {
+     *         if (m)
+     *         {
+     *             auto fp = m.unitTest;
+     *
+     *             if (fp)
+     *             {
+     *                 try
+     *                 {
+     *                     fp();
+     *                 }
+     *                 catch (Throwable e)
+     *                 {
+     *                     writeln(e);
+     *                     failed++;
+     *                 }
+     *             }
+     *         }
+     *     }
+     *     return failed == 0;
+     * }
+     * ---------
      */
     static @property void moduleUnitTester( ModuleUnitTester h )
     {
@@ -415,6 +456,8 @@ extern (C) bool runModuleUnitTests()
         import core.sys.darwin.execinfo;
     else version( FreeBSD )
         import core.sys.freebsd.execinfo;
+    else version( NetBSD )
+        import core.sys.netbsd.execinfo;
     else version( Windows )
         import core.sys.windows.stacktrace;
     else version( Solaris )
@@ -497,6 +540,8 @@ Throwable.TraceInfo defaultTraceHandler( void* ptr = null )
         import core.sys.darwin.execinfo;
     else version( FreeBSD )
         import core.sys.freebsd.execinfo;
+    else version( NetBSD )
+        import core.sys.netbsd.execinfo;
     else version( Windows )
         import core.sys.windows.stacktrace;
     else version( Solaris )
@@ -683,6 +728,18 @@ Throwable.TraceInfo defaultTraceHandler( void* ptr = null )
                     }
                 }
                 else version( FreeBSD )
+                {
+                    // format is: 0x00000000 <_D6module4funcAFZv+0x78> at module
+                    auto bptr = cast(char*) memchr( buf.ptr, '<', buf.length );
+                    auto eptr = cast(char*) memchr( buf.ptr, '+', buf.length );
+
+                    if( bptr++ && eptr )
+                    {
+                        symBeg = bptr - buf.ptr;
+                        symEnd = eptr - buf.ptr;
+                    }
+                }
+                else version( NetBSD )
                 {
                     // format is: 0x00000000 <_D6module4funcAFZv+0x78> at module
                     auto bptr = cast(char*) memchr( buf.ptr, '<', buf.length );

@@ -13,6 +13,7 @@ module rt.dwarfeh;
 
 version (Posix):
 
+import rt.dmain2: _d_print_throwable;
 import rt.unwind;
 import core.stdc.stdio;
 import core.stdc.stdlib;
@@ -157,7 +158,7 @@ extern(C) Throwable __dmd_begin_catch(_Unwind_Exception* exceptionObject)
  * Returns:
  *      previous value of stack
  */
-extern(C) void* _d_eh_swapContextDwarf(void* newContext) nothrow
+extern(C) void* _d_eh_swapContextDwarf(void* newContext) nothrow @nogc
 {
     auto old = ExceptionHeader.stack;
     ExceptionHeader.stack = cast(ExceptionHeader*)newContext;
@@ -217,11 +218,13 @@ extern(C) void _d_throwdwarf(Throwable o)
         case _URC_END_OF_STACK:
             /* Unwound the stack without encountering a catch clause.
              * In C++, this would mean call uncaught_exception().
-             * In D, this should never happen since everything is enclosed
-             * by a top-level try/catch.
+             * In D, this can happen only if `rt_trapException` is cleared
+             * since otherwise everything is enclosed by a top-level
+             * try/catch.
              */
             fprintf(stderr, "uncaught exception\n");
-            terminate(__LINE__);                          // should never happen
+            _d_print_throwable(o);
+            abort();
             assert(0);
 
         case _URC_FATAL_PHASE1_ERROR:
@@ -373,16 +376,11 @@ extern (C) _Unwind_Reason_Code __dmd_personality_v0(int ver, _Unwind_Action acti
     if (exceptionClass == dmdExceptionClass)
     {
         auto eh = ExceptionHeader.toExceptionHeader(exceptionObject);
+        auto currentLsd = language_specific_data;
+        bool bypassed = false;
         while (eh.next)
         {
             ExceptionHeader* ehn = eh.next;
-
-            // Don't combine when the exceptions are from different functions
-            if (language_specific_data != ehn.languageSpecificData)
-            {
-                //printf("break: %p %p\n", language_specific_data, ehn.languageSpecificData);
-                break;
-            }
 
             Error e = cast(Error)eh.object;
             if (e !is null && !cast(Error)ehn.object)
@@ -390,8 +388,21 @@ extern (C) _Unwind_Reason_Code __dmd_personality_v0(int ver, _Unwind_Action acti
                 /* eh is an Error, ehn is not. Skip ehn.
                  */
                 //printf("bypass\n");
-                e.bypassedException = ehn.object;
+                currentLsd = ehn.languageSpecificData;
+
+                // Continuing to construct the bypassed chain
+                eh = ehn;
+                bypassed = true;
+                continue;
             }
+
+            // Don't combine when the exceptions are from different functions
+            if (currentLsd != ehn.languageSpecificData)
+            {
+                //printf("break: %p %p\n", currentLsd, ehn.languageSpecificData);
+                break;
+            }
+
             else
             {
                 //printf("chain\n");
@@ -403,7 +414,7 @@ extern (C) _Unwind_Reason_Code __dmd_personality_v0(int ver, _Unwind_Action acti
 
                 // Replace our exception object with in-flight one
                 eh.object = ehn.object;
-                if (ehn.handler != handler)
+                if (ehn.handler != handler && !bypassed)
                 {
                     handler = ehn.handler;
 
@@ -417,6 +428,15 @@ extern (C) _Unwind_Reason_Code __dmd_personality_v0(int ver, _Unwind_Action acti
             eh.next = ehn.next;
             //printf("delete %p\n", ehn);
             _Unwind_DeleteException(&ehn.exception_object); // discard ehn
+        }
+        if (bypassed)
+        {
+            eh = ExceptionHeader.toExceptionHeader(exceptionObject);
+            Error e = cast(Error)eh.object;
+            auto ehn = eh.next;
+            e.bypassedException = ehn.object;
+            eh.next = ehn.next;
+            _Unwind_DeleteException(&ehn.exception_object);
         }
     }
 

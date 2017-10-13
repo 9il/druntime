@@ -23,7 +23,7 @@ public enum    MSG_COPY = 4 << 12; // octal!40000
 
 struct msgbuf {
     c_long mtype;
-    char mtext[1];
+    char[1] mtext;
 };
 
 struct msginfo {
@@ -83,7 +83,7 @@ else version(HPPA)
     };
 
 }
-else version(MIPS)
+else version(MIPS32)
 {
     // https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/unix/sysv/linux/mips/bits/msq.h
     alias c_ulong msgqnum_t;
